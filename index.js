@@ -51,7 +51,7 @@ async function resize(url) {
             `resize:fill:${width}:${height}`,
             `q:${quality}`,
         ].filter(Boolean).join("/");
-        const imgproxyRequestUrl = `${imgproxyUrl}/${imgproxySignature}/${processingOptions}/plain/${encodeURIComponent(src)}`
+        const imgproxyRequestUrl = `${imgproxyUrl}/${imgproxySignature}/${processingOptions}/plain/${encodeURI(src)}`
         const image = await fetch(imgproxyRequestUrl, {
             headers: {
                 "Accept": "image/avif,image/webp,image/apng,*/*",
