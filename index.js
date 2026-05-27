@@ -4,6 +4,8 @@ let allowedDomains = process?.env?.ALLOWED_REMOTE_DOMAINS?.split(",") || ["*"];
 let imgproxyUrl = process?.env?.IMGPROXY_URL || "http://imgproxy:8080";
 const imgproxySignature = process?.env?.IMGPROXY_SIGNATURE || "unsafe";
 const imgproxyPreset = process?.env?.IMGPROXY_PRESET;
+const maxWidth = Number(process?.env?.MAX_IMAGE_WIDTH || 2048);
+const maxHeight = Number(process?.env?.MAX_IMAGE_HEIGHT || 2048);
 if (process.env.NODE_ENV === "development") {
     imgproxyUrl = "http://localhost:8888"
 }
@@ -42,8 +44,17 @@ async function resize(url, req) {
     if (allowed.length === 0) {
         return new Response(`Domain (${origin}) not allowed. More details here: https://github.com/coollabsio/next-image-transformation`, { status: 403 });
     }
-    const width = url.searchParams.get("width") || 0;
-    const height = url.searchParams.get("height") || 0;
+    const width = parseDimension(url.searchParams.get("width"), maxWidth);
+    const height = parseDimension(url.searchParams.get("height"), maxHeight);
+    if (width === null || height === null) {
+        return new Response(`Invalid image dimensions. Width and height must be whole numbers between 0 and ${Math.max(maxWidth, maxHeight)}.`, {
+            status: 400,
+            headers: {
+                "Cache-Control": "no-store",
+                "Content-Type": "text/plain",
+            },
+        });
+    }
     const quality = url.searchParams.get("quality") || 75;
     try {
         const processingOptions = [
@@ -76,4 +87,12 @@ async function resize(url, req) {
             },
         })
     }
+}
+
+function parseDimension(value, max) {
+    if (!value) return 0;
+    if (!/^\d+$/.test(value)) return null;
+    const dimension = Number(value);
+    if (!Number.isSafeInteger(dimension) || dimension > max) return null;
+    return dimension;
 }

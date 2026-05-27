@@ -33,6 +33,13 @@ For Supabase Storage, set `ALLOWED_REMOTE_DOMAINS` to the project host without p
 ALLOWED_REMOTE_DOMAINS=your-project.supabase.co
 ```
 
+Limit requested image dimensions to protect the origin from expensive resize variants:
+
+```env
+MAX_IMAGE_WIDTH=2048
+MAX_IMAGE_HEIGHT=2048
+```
+
 The API signs unsigned imgproxy requests with the `unsafe` path segment by default and forwards the source URL in imgproxy's `plain/` URL format. Override `IMGPROXY_SIGNATURE` only if you also configure matching imgproxy signing support.
 
 The upstream template used a hardcoded `pr:sharp` imgproxy preset, but the bundled imgproxy service does not define that preset. This fork omits presets by default. If you define a preset in imgproxy, set `IMGPROXY_PRESET=<name>` on the API service.
