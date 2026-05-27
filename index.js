@@ -25,12 +25,12 @@ Bun.serve({
         if (url.pathname === "/health") {
             return new Response("OK");
         };
-        if (url.pathname.startsWith("/image/")) return await resize(url);
+        if (url.pathname.startsWith("/image/")) return await resize(url, req);
         return Response.redirect("https://github.com/coollabsio/next-image-transformation", 302);
     }
 });
 
-async function resize(url) {
+async function resize(url, req) {
     const src = url.pathname.split("/").slice(2).join("/");
     const origin = new URL(src).hostname;
     const allowed = allowedDomains.filter(domain => {
@@ -54,7 +54,7 @@ async function resize(url) {
         const imgproxyRequestUrl = `${imgproxyUrl}/${imgproxySignature}/${processingOptions}/plain/${encodeURI(src)}`
         const image = await fetch(imgproxyRequestUrl, {
             headers: {
-                "Accept": "image/avif,image/webp,image/apng,*/*",
+                "Accept": req.headers.get("Accept") || "*/*",
             }
         })
         const headers = new Headers(image.headers);
