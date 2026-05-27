@@ -40,6 +40,18 @@ MAX_IMAGE_WIDTH=2048
 MAX_IMAGE_HEIGHT=2048
 ```
 
+The bundled imgproxy service also includes production-oriented defaults for source allowlisting, source size limits, animated image limits, and network timeouts. Override these in Coolify only if needed:
+
+```env
+IMGPROXY_ALLOWED_SOURCES=https://your-project.supabase.co/
+IMGPROXY_MAX_SRC_RESOLUTION=50
+IMGPROXY_MAX_SRC_FILE_SIZE=10485760
+IMGPROXY_MAX_ANIMATION_FRAMES=1
+IMGPROXY_DOWNLOAD_TIMEOUT=5
+IMGPROXY_READ_REQUEST_TIMEOUT=10
+IMGPROXY_WRITE_RESPONSE_TIMEOUT=10
+```
+
 The API signs unsigned imgproxy requests with the `unsafe` path segment by default and forwards the source URL in imgproxy's `plain/` URL format. Override `IMGPROXY_SIGNATURE` only if you also configure matching imgproxy signing support.
 
 The upstream template used a hardcoded `pr:sharp` imgproxy preset, but the bundled imgproxy service does not define that preset. This fork omits presets by default. If you define a preset in imgproxy, set `IMGPROXY_PRESET=<name>` on the API service.
