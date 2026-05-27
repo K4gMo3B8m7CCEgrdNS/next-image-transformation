@@ -2,10 +2,13 @@ const version = "0.0.3"
 
 let allowedDomains = process?.env?.ALLOWED_REMOTE_DOMAINS?.split(",") || ["*"];
 let imgproxyUrl = process?.env?.IMGPROXY_URL || "http://imgproxy:8080";
+const imgproxySignature = process?.env?.IMGPROXY_SIGNATURE || "unsafe";
+const imgproxyPreset = process?.env?.IMGPROXY_PRESET;
 if (process.env.NODE_ENV === "development") {
     imgproxyUrl = "http://localhost:8888"
 }
 allowedDomains = allowedDomains.map(d => d.trim());
+imgproxyUrl = imgproxyUrl.replace(/\/+$/, "");
 
 Bun.serve({
     port: 3000,
@@ -28,7 +31,6 @@ Bun.serve({
 });
 
 async function resize(url) {
-    const preset = "pr:sharp"
     const src = url.pathname.split("/").slice(2).join("/");
     const origin = new URL(src).hostname;
     const allowed = allowedDomains.filter(domain => {
@@ -44,19 +46,34 @@ async function resize(url) {
     const height = url.searchParams.get("height") || 0;
     const quality = url.searchParams.get("quality") || 75;
     try {
-        const url = `${imgproxyUrl}/${preset}/resize:fill:${width}:${height}/q:${quality}/plain/${src}`
-        const image = await fetch(url, {
+        const processingOptions = [
+            imgproxyPreset ? `pr:${imgproxyPreset}` : null,
+            `resize:fill:${width}:${height}`,
+            `q:${quality}`,
+        ].filter(Boolean).join("/");
+        const imgproxyRequestUrl = `${imgproxyUrl}/${imgproxySignature}/${processingOptions}/plain/${encodeURIComponent(src)}`
+        const image = await fetch(imgproxyRequestUrl, {
             headers: {
                 "Accept": "image/avif,image/webp,image/apng,*/*",
             }
         })
         const headers = new Headers(image.headers);
         headers.set("Server", "NextImageTransformation");
+        if (!image.ok) {
+            headers.set("Cache-Control", "no-store");
+        }
         return new Response(image.body, {
+            status: image.status,
             headers
         })
     } catch (e) {
         console.log(e)
-        return new Response("Error resizing image")
+        return new Response("Error resizing image", {
+            status: 500,
+            headers: {
+                "Cache-Control": "no-store",
+                "Content-Type": "text/plain",
+            },
+        })
     }
 }

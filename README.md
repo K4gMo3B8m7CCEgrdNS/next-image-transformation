@@ -22,10 +22,20 @@ https://image.coollabs.io/image/https://cdn.coollabs.io/images/image1.jpg?width=
 
 ## How to deploy with Coolify
 1. Login to your [Coolify](https://coolify.io) instance or the [cloud](https://app.coolify.io).
-2. Create a new service and select the `Next.js Image Transformation` template.
+2. Create a new Docker Compose service from this repository.
 3. Optional: Set the `ALLOWED_REMOTE_DOMAINS` environment variable to the domain of your images (e.g. `example.com,coolify.io`). By default, it is set to `*` which allows any domain.
 4. Set the your `<domain>` on the `Next Image Transformation` service.
 5. Deploy your service.
+
+For Supabase Storage, set `ALLOWED_REMOTE_DOMAINS` to the project host without protocol:
+
+```env
+ALLOWED_REMOTE_DOMAINS=your-project.supabase.co
+```
+
+The API signs unsigned imgproxy requests with the `unsafe` path segment by default and percent-encodes the source URL before forwarding it to imgproxy. Override `IMGPROXY_SIGNATURE` only if you also configure matching imgproxy signing support.
+
+The upstream template used a hardcoded `pr:sharp` imgproxy preset, but the bundled imgproxy service does not define that preset. This fork omits presets by default. If you define a preset in imgproxy, set `IMGPROXY_PRESET=<name>` on the API service.
 
 ## How to use in Next.js
 1. In `next.config.js` add the following:
