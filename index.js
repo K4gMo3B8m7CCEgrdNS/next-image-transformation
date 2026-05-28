@@ -7,6 +7,8 @@ const imgproxyPreset = process?.env?.IMGPROXY_PRESET;
 const maxWidth = Number(process?.env?.MAX_IMAGE_WIDTH || 2048);
 const maxHeight = Number(process?.env?.MAX_IMAGE_HEIGHT || 2048);
 const supabasePublicStorageBase = process?.env?.SUPABASE_PUBLIC_STORAGE_BASE?.replace(/\/+$/, "");
+const dimensionPresets = [320, 480, 640, 720, 960, 1280, 1600, 2048];
+const qualityPresets = [50, 75, 85];
 if (process.env.NODE_ENV === "development") {
     imgproxyUrl = "http://localhost:8888"
 }
@@ -57,9 +59,10 @@ async function resize(url, req, src) {
     if (allowed.length === 0) {
         return new Response(`Domain (${origin}) not allowed. More details here: https://github.com/coollabsio/next-image-transformation`, { status: 403 });
     }
-    const width = parseDimension(url.searchParams.get("width") || url.searchParams.get("w"), maxWidth);
-    const height = parseDimension(url.searchParams.get("height") || url.searchParams.get("h"), maxHeight);
-    if (width === null || height === null) {
+    const requestedWidth = parseDimension(url.searchParams.get("width") || url.searchParams.get("w"), maxWidth);
+    const requestedHeight = parseDimension(url.searchParams.get("height") || url.searchParams.get("h"), maxHeight);
+    const requestedQuality = parseDimension(url.searchParams.get("quality") || url.searchParams.get("q") || 75, 100);
+    if (requestedWidth === null || requestedHeight === null || requestedQuality === null) {
         return new Response(`Invalid image dimensions. Width and height must be whole numbers between 0 and ${Math.max(maxWidth, maxHeight)}.`, {
             status: 400,
             headers: {
@@ -68,14 +71,17 @@ async function resize(url, req, src) {
             },
         });
     }
-    const quality = url.searchParams.get("quality") || url.searchParams.get("q") || 75;
+    const width = snapToPreset(requestedWidth, dimensionPresets);
+    const height = snapToPreset(requestedHeight, dimensionPresets);
+    const quality = snapToPreset(requestedQuality, qualityPresets);
     try {
-        const processingOptions = [
-            imgproxyPreset ? `pr:${imgproxyPreset}` : null,
-            `resize:fill:${width}:${height}`,
-            `q:${quality}`,
-        ].filter(Boolean).join("/");
-        const imgproxyRequestUrl = `${imgproxyUrl}/${imgproxySignature}/${processingOptions}/plain/${encodeURI(src)}`
+        const presets = [
+            imgproxyPreset || null,
+            width ? `w_${width}` : null,
+            height ? `h_${height}` : null,
+            `q_${quality}`,
+        ].filter(Boolean).join(":");
+        const imgproxyRequestUrl = `${imgproxyUrl}/${imgproxySignature}/${presets}/plain/${encodeURI(src)}`
         const image = await fetch(imgproxyRequestUrl, {
             headers: {
                 "Accept": req.headers.get("Accept") || "*/*",
@@ -108,4 +114,9 @@ function parseDimension(value, max) {
     const dimension = Number(value);
     if (!Number.isSafeInteger(dimension) || dimension > max) return null;
     return dimension;
+}
+
+function snapToPreset(value, presets) {
+    if (value === 0) return 0;
+    return presets.find(preset => preset >= value) || presets[presets.length - 1];
 }

@@ -53,9 +53,17 @@ MAX_IMAGE_WIDTH=2048
 MAX_IMAGE_HEIGHT=2048
 ```
 
+Requested dimensions are snapped to preset buckets to improve CDN cache hit rate:
+
+```text
+320, 480, 640, 720, 960, 1280, 1600, 2048
+```
+
 The bundled imgproxy service also includes production-oriented defaults for source allowlisting, source size limits, animated image limits, and network timeouts. Override these in Coolify only if needed:
 
 ```env
+IMGPROXY_WORKERS=2
+IMGPROXY_MAX_RESULT_DIMENSION=2048
 IMGPROXY_ALLOWED_SOURCES=https://your-project.supabase.co/
 IMGPROXY_MAX_SRC_RESOLUTION=50
 IMGPROXY_MAX_SRC_FILE_SIZE=10485760
