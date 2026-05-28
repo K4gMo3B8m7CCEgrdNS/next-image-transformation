@@ -31,6 +31,19 @@ For Supabase Storage, set `ALLOWED_REMOTE_DOMAINS` to the project host without p
 
 ```env
 ALLOWED_REMOTE_DOMAINS=your-project.supabase.co
+SUPABASE_PUBLIC_STORAGE_BASE=https://your-project.supabase.co/storage/v1/object/public
+```
+
+This also enables shorter Supabase profile image URLs:
+
+```text
+https://<image-optimization-domain>/i/profile/<profile-id>/<image-id>/gallery-720.jpg?w=720
+```
+
+The API maps that to:
+
+```text
+https://your-project.supabase.co/storage/v1/object/public/images-derived/profile/<profile-id>/<image-id>/gallery-720.jpg
 ```
 
 Limit requested image dimensions to protect the origin from expensive resize variants:

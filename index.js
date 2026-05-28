@@ -6,6 +6,7 @@ const imgproxySignature = process?.env?.IMGPROXY_SIGNATURE || "unsafe";
 const imgproxyPreset = process?.env?.IMGPROXY_PRESET;
 const maxWidth = Number(process?.env?.MAX_IMAGE_WIDTH || 2048);
 const maxHeight = Number(process?.env?.MAX_IMAGE_HEIGHT || 2048);
+const supabasePublicStorageBase = process?.env?.SUPABASE_PUBLIC_STORAGE_BASE?.replace(/\/+$/, "");
 if (process.env.NODE_ENV === "development") {
     imgproxyUrl = "http://localhost:8888"
 }
@@ -27,13 +28,25 @@ Bun.serve({
         if (url.pathname === "/health") {
             return new Response("OK");
         };
-        if (url.pathname.startsWith("/image/")) return await resize(url, req);
+        if (url.pathname.startsWith("/image/")) return await resize(url, req, url.pathname.split("/").slice(2).join("/"));
+        if (url.pathname.startsWith("/i/profile/")) {
+            if (!supabasePublicStorageBase) {
+                return new Response("SUPABASE_PUBLIC_STORAGE_BASE is not configured", {
+                    status: 500,
+                    headers: {
+                        "Cache-Control": "no-store",
+                        "Content-Type": "text/plain",
+                    },
+                });
+            }
+            const profilePath = url.pathname.slice("/i/profile/".length);
+            return await resize(url, req, `${supabasePublicStorageBase}/images-derived/profile/${profilePath}`);
+        }
         return Response.redirect("https://github.com/coollabsio/next-image-transformation", 302);
     }
 });
 
-async function resize(url, req) {
-    const src = url.pathname.split("/").slice(2).join("/");
+async function resize(url, req, src) {
     const origin = new URL(src).hostname;
     const allowed = allowedDomains.filter(domain => {
         if (domain === "*") return true;
@@ -44,8 +57,8 @@ async function resize(url, req) {
     if (allowed.length === 0) {
         return new Response(`Domain (${origin}) not allowed. More details here: https://github.com/coollabsio/next-image-transformation`, { status: 403 });
     }
-    const width = parseDimension(url.searchParams.get("width"), maxWidth);
-    const height = parseDimension(url.searchParams.get("height"), maxHeight);
+    const width = parseDimension(url.searchParams.get("width") || url.searchParams.get("w"), maxWidth);
+    const height = parseDimension(url.searchParams.get("height") || url.searchParams.get("h"), maxHeight);
     if (width === null || height === null) {
         return new Response(`Invalid image dimensions. Width and height must be whole numbers between 0 and ${Math.max(maxWidth, maxHeight)}.`, {
             status: 400,
@@ -55,7 +68,7 @@ async function resize(url, req) {
             },
         });
     }
-    const quality = url.searchParams.get("quality") || 75;
+    const quality = url.searchParams.get("quality") || url.searchParams.get("q") || 75;
     try {
         const processingOptions = [
             imgproxyPreset ? `pr:${imgproxyPreset}` : null,

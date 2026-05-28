@@ -6,6 +6,7 @@ services:
     environment:
       - NODE_ENV=production
       - IMGPROXY_URL=http://imgproxy:8080
+      - SUPABASE_PUBLIC_STORAGE_BASE=${SUPABASE_PUBLIC_STORAGE_BASE}
       - MAX_IMAGE_WIDTH=${MAX_IMAGE_WIDTH:-2048}
       - MAX_IMAGE_HEIGHT=${MAX_IMAGE_HEIGHT:-2048}
     healthcheck:
