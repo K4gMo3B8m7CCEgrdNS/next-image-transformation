@@ -1,75 +1,268 @@
-# Next.js Image Transformation
+# Next Image Transformation
 
-An open-source & self-hostable image optimization service, a drop-in replacement for Vercel's Image Optimization.
+A small self-hosted image optimization service for Next.js applications.
 
-## Cloud with free global CDN
+The service has two parts:
 
-The cloud version, with free global CDN and simple pricing available here: https://images.coollabs.io
+1. A Bun API wrapper that exposes short, application-friendly image URLs.
+2. An imgproxy container that performs resizing, format conversion, and image processing.
 
-## Try it out 
+The current deployment is designed for Supabase Storage images and Cloudflare CDN caching.
 
-- Change the `width` query parameter to see the image resize on the fly.
-- Add the `height` query parameter to see the image crop on the fly.
-- Add the `quality` query parameter to see the image quality change on the fly.
+## URL Contract
 
-https://image.coollabs.io/image/https://cdn.coollabs.io/images/image1.jpg?width=500
+### Pretty Supabase profile route
 
-## Includes
-1. Next Image Transformation API.
-   - A simple API written in Bun that transforms the incoming request to Imgproxy format and forwards it to the Imgproxy service.
-2. Imgproxy service.
-   - A powerful and fast image processing service that can resize, crop, and transform images on the fly.
-
-## How to deploy with Coolify
-1. Login to your [Coolify](https://coolify.io) instance or the [cloud](https://app.coolify.io).
-2. Create a new Docker Compose service from this repository.
-3. Optional: Set the `ALLOWED_REMOTE_DOMAINS` environment variable to the domain of your images (e.g. `example.com,coolify.io`). By default, it is set to `*` which allows any domain.
-4. Set the your `<domain>` on the `Next Image Transformation` service.
-5. Deploy your service.
-
-For Supabase Storage, set `ALLOWED_REMOTE_DOMAINS` to the project host without protocol:
-
-```env
-ALLOWED_REMOTE_DOMAINS=your-project.supabase.co
-SUPABASE_PUBLIC_STORAGE_BASE=https://your-project.supabase.co/storage/v1/object/public
-```
-
-This also enables shorter Supabase profile image URLs:
+Use this route for profile gallery images stored in the `images-derived` Supabase bucket:
 
 ```text
-https://<image-optimization-domain>/i/profile/<profile-id>/<image-id>/gallery-720.jpg?w=720
+https://img.cockbro.com/i/profile/<profile-id>/<image-id>/<file>?w=<width>&q=<quality>&f=<format>
 ```
 
-If `f` is omitted, the API detects the request `Accept` header and redirects to a format-specific URL for CDN-safe caching:
+Example:
 
 ```text
-https://<image-optimization-domain>/i/profile/<profile-id>/<image-id>/gallery-720.jpg?w=720&f=avif
-https://<image-optimization-domain>/i/profile/<profile-id>/<image-id>/gallery-720.jpg?w=720&f=webp
-https://<image-optimization-domain>/i/profile/<profile-id>/<image-id>/gallery-720.jpg?w=720&f=jpg
+https://img.cockbro.com/i/profile/2b2b8fea-7296-4d79-8525-edde5e6dc3b2/690da1ea-7ea9-4daf-813e-fc23087946b1/gallery-720.jpg?w=720&q=75&f=avif
 ```
 
-The API maps that to:
+This maps internally to:
 
 ```text
-https://your-project.supabase.co/storage/v1/object/public/images-derived/profile/<profile-id>/<image-id>/gallery-720.jpg
+https://<supabase-project>.supabase.co/storage/v1/object/public/images-derived/profile/<profile-id>/<image-id>/<file>
 ```
 
-Limit requested image dimensions to protect the origin from expensive resize variants:
+### Generic source route
 
-```env
-MAX_IMAGE_WIDTH=2048
-MAX_IMAGE_HEIGHT=2048
+The original generic route is still supported:
+
+```text
+https://img.cockbro.com/image/<absolute-source-url>?width=720&quality=75&f=avif
 ```
 
-Requested dimensions are snapped to preset buckets to improve CDN cache hit rate:
+Example:
+
+```text
+https://img.cockbro.com/image/https://example.com/image.jpg?width=720&quality=75&f=webp
+```
+
+## Query Parameters
+
+The pretty route supports short query params:
+
+```text
+w = width
+h = height
+q = quality
+f = output format
+```
+
+The generic route supports both short and long names:
+
+```text
+width or w
+height or h
+quality or q
+f
+```
+
+Supported formats:
+
+```text
+avif
+webp
+jpg
+```
+
+Invalid formats return `400` and are not cached.
+
+## Format Selection
+
+For Cloudflare Free, do not rely on `Vary: Accept` to cache AVIF/WebP/JPG variants correctly under the same URL. This service makes the format part of the URL with `f=`.
+
+If `f` is omitted, the Bun API chooses the best format from the request `Accept` header and redirects to a format-specific URL:
+
+```text
+/i/profile/.../gallery-720.jpg?w=720
+```
+
+Redirects to one of:
+
+```text
+/i/profile/.../gallery-720.jpg?w=720&f=avif
+/i/profile/.../gallery-720.jpg?w=720&f=webp
+/i/profile/.../gallery-720.jpg?w=720&f=jpg
+```
+
+Selection order:
+
+```text
+image/avif -> avif
+image/webp -> webp
+otherwise  -> jpg
+```
+
+Use explicit `f=` URLs in your frontend where possible to avoid the redirect.
+
+## Responsive Images
+
+For the best frontend behavior, use format-specific URLs in a `<picture>` element. This lets the browser choose both the best format and the best size, while Cloudflare caches each URL independently.
+
+```html
+<picture>
+  <source
+    type="image/avif"
+    srcset="
+      https://img.cockbro.com/i/profile/<profile-id>/<image-id>/gallery-720.jpg?w=320&f=avif 320w,
+      https://img.cockbro.com/i/profile/<profile-id>/<image-id>/gallery-720.jpg?w=640&f=avif 640w,
+      https://img.cockbro.com/i/profile/<profile-id>/<image-id>/gallery-720.jpg?w=960&f=avif 960w
+    "
+    sizes="(max-width: 768px) 100vw, 720px"
+  />
+  <source
+    type="image/webp"
+    srcset="
+      https://img.cockbro.com/i/profile/<profile-id>/<image-id>/gallery-720.jpg?w=320&f=webp 320w,
+      https://img.cockbro.com/i/profile/<profile-id>/<image-id>/gallery-720.jpg?w=640&f=webp 640w,
+      https://img.cockbro.com/i/profile/<profile-id>/<image-id>/gallery-720.jpg?w=960&f=webp 960w
+    "
+    sizes="(max-width: 768px) 100vw, 720px"
+  />
+  <img
+    src="https://img.cockbro.com/i/profile/<profile-id>/<image-id>/gallery-720.jpg?w=720&f=jpg"
+    srcset="
+      https://img.cockbro.com/i/profile/<profile-id>/<image-id>/gallery-720.jpg?w=320&f=jpg 320w,
+      https://img.cockbro.com/i/profile/<profile-id>/<image-id>/gallery-720.jpg?w=640&f=jpg 640w,
+      https://img.cockbro.com/i/profile/<profile-id>/<image-id>/gallery-720.jpg?w=960&f=jpg 960w
+    "
+    sizes="(max-width: 768px) 100vw, 720px"
+    width="720"
+    height="720"
+    alt=""
+    loading="lazy"
+    decoding="async"
+  />
+</picture>
+```
+
+## Using Next.js `Image`
+
+`next/image` with a custom loader can use the pretty URL, but it emits a single URL per generated image candidate. If you omit `f`, the service redirects once to the best format-specific URL.
+
+Example loader:
+
+```js
+'use client'
+
+const imageOptimizationApi = 'https://img.cockbro.com';
+
+export default function imageLoader({ src, width, quality }) {
+  const query = new URLSearchParams();
+  query.set('w', width);
+  query.set('q', quality || 75);
+
+  return `${imageOptimizationApi}${src}?${query.toString()}`;
+}
+```
+
+Example usage:
+
+```tsx
+import Image from 'next/image';
+
+<Image
+  src="/i/profile/2b2b8fea-7296-4d79-8525-edde5e6dc3b2/690da1ea-7ea9-4daf-813e-fc23087946b1/gallery-720.jpg"
+  width={720}
+  height={720}
+  sizes="(max-width: 768px) 100vw, 720px"
+  alt=""
+/>
+```
+
+For high-traffic or above-the-fold images, prefer a custom `<picture>` wrapper with explicit `f=avif`, `f=webp`, and `f=jpg` URLs. That avoids redirects and is safest with Cloudflare Free.
+
+## Preset Bucketing
+
+The wrapper snaps requested widths and heights to preset buckets before calling imgproxy:
 
 ```text
 320, 480, 640, 720, 960, 1280, 1600, 2048
 ```
 
-Quality is snapped to `50`, `75`, or `85`.
+Examples:
 
-The bundled imgproxy service also includes production-oriented defaults for source allowlisting, source size limits, animated image limits, and network timeouts. Override these in Coolify only if needed:
+```text
+w=713 -> w_720
+w=721 -> w_960
+w=2049 -> 400
+```
+
+Quality is snapped to:
+
+```text
+50, 75, 85
+```
+
+Examples:
+
+```text
+q=60 -> q_75
+q=76 -> q_85
+q=101 -> 400
+```
+
+This reduces the number of unique Cloudflare cache keys and improves cache hit rate.
+
+## Resize Behavior
+
+imgproxy runs in `IMGPROXY_ONLY_PRESETS=true` mode.
+
+The default preset uses:
+
+```text
+resizing_type:fit
+```
+
+This preserves aspect ratio by default. Width-only URLs resize by width. Height-only URLs resize by height. Width plus height fits inside the requested box rather than cropping.
+
+## Cloudflare Caching
+
+Successful image responses include:
+
+```text
+cache-control: max-age=31536000, public
+vary: Accept
+```
+
+Because Cloudflare Free does not safely vary cached images by `Accept`, use format-specific URLs:
+
+```text
+?f=avif
+?f=webp
+?f=jpg
+```
+
+Verified behavior:
+
+```text
+?f=avif -> image/avif -> second request cf-cache-status: HIT
+?f=webp -> image/webp -> second request cf-cache-status: HIT
+?f=jpg  -> image/jpeg -> second request cf-cache-status: HIT
+```
+
+Error responses use `Cache-Control: no-store` and should return `cf-cache-status: BYPASS`.
+
+## Environment Variables
+
+Set these in Coolify:
+
+```env
+ALLOWED_REMOTE_DOMAINS=your-project.supabase.co
+SUPABASE_PUBLIC_STORAGE_BASE=https://your-project.supabase.co/storage/v1/object/public
+MAX_IMAGE_WIDTH=2048
+MAX_IMAGE_HEIGHT=2048
+```
+
+Useful imgproxy defaults:
 
 ```env
 IMGPROXY_WORKERS=2
@@ -83,51 +276,36 @@ IMGPROXY_READ_REQUEST_TIMEOUT=10
 IMGPROXY_WRITE_RESPONSE_TIMEOUT=10
 ```
 
-The API signs unsigned imgproxy requests with the `unsafe` path segment by default and forwards the source URL in imgproxy's `plain/` URL format. Override `IMGPROXY_SIGNATURE` only if you also configure matching imgproxy signing support.
+## Architecture
 
-The upstream template used a hardcoded `pr:sharp` imgproxy preset, but the bundled imgproxy service does not define that preset. This fork omits presets by default. If you define a preset in imgproxy, set `IMGPROXY_PRESET=<name>` on the API service.
+Request flow:
 
-## How to use in Next.js
-1. In `next.config.js` add the following:
-```javascript
-module.exports = {
-  images: {
-    loader: 'custom',
-    loaderFile: './loader.js',
-  },
-}
-```
-2. Create a file called `loader.js` in the root of your project and add the following:
-```javascript
-'use client'
-
-export default function myImageLoader({ src, width, quality }) {
-    const isLocal = !src.startsWith('http');
-    const query = new URLSearchParams();
-
-    const imageOptimizationApi = '<image-optimization-domain>';
-    // Your NextJS application URL
-    const baseUrl = '<your-nextjs-app-domain>';
-
-    const fullSrc = `${baseUrl}${src}`;
-
-    if (width) query.set('width', width);
-    if (quality) query.set('quality', quality);
-
-    if (isLocal && process.env.NODE_ENV === 'development') {
-        return src;
-    }
-    if (isLocal) {
-        return `${imageOptimizationApi}/image/${fullSrc}?${query.toString()}`;
-    }
-    return `${imageOptimizationApi}/image/${src}?${query.toString()}`;
-}
+```text
+Browser
+  -> Cloudflare
+  -> Bun API wrapper
+  -> imgproxy
+  -> Supabase Storage
 ```
 
-- Replace `<image-optimization-domain>` with the URL of what you set on the `Next Image Transformation API`.
-- Replace `<your-nextjs-app-domain>` with the URL of your Nextjs application.
+The Bun API is responsible for:
 
-## Currently supported transformations
-- width
-- height
-- quality
+- Pretty `/i/profile/...` routes
+- Generic `/image/<absolute-url>` routes
+- Width, height, quality, and format validation
+- Preset bucketing
+- `Accept` based redirects when `f` is omitted
+- Domain allowlisting before forwarding to imgproxy
+
+imgproxy is responsible for:
+
+- Resizing
+- Format conversion
+- Source size limits
+- Result size limits
+- Source allowlisting as a second layer of protection
+
+Cloudflare is responsible for:
+
+- CDN caching by URL
+- Serving repeated format-specific image requests from edge cache
