@@ -76,6 +76,7 @@ async function resize(url, req, src) {
     if (!format) {
         const redirectUrl = new URL(url);
         redirectUrl.searchParams.set("f", chooseFormat(req.headers.get("Accept")));
+        redirectUrl.protocol = `${req.headers.get("x-forwarded-proto") || redirectUrl.protocol.replace(":", "")}:`;
         return Response.redirect(redirectUrl.toString(), 302);
     }
     if (!allowedFormats.includes(format)) {
