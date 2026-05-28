@@ -9,6 +9,7 @@ const maxHeight = Number(process?.env?.MAX_IMAGE_HEIGHT || 2048);
 const supabasePublicStorageBase = process?.env?.SUPABASE_PUBLIC_STORAGE_BASE?.replace(/\/+$/, "");
 const dimensionPresets = [320, 480, 640, 720, 960, 1280, 1600, 2048];
 const qualityPresets = [50, 75, 85];
+const allowedFormats = ["avif", "webp", "jpg"];
 if (process.env.NODE_ENV === "development") {
     imgproxyUrl = "http://localhost:8888"
 }
@@ -62,8 +63,23 @@ async function resize(url, req, src) {
     const requestedWidth = parseDimension(url.searchParams.get("width") || url.searchParams.get("w"), maxWidth);
     const requestedHeight = parseDimension(url.searchParams.get("height") || url.searchParams.get("h"), maxHeight);
     const requestedQuality = parseDimension(url.searchParams.get("quality") || url.searchParams.get("q") || 75, 100);
+    const format = url.searchParams.get("f");
     if (requestedWidth === null || requestedHeight === null || requestedQuality === null) {
         return new Response(`Invalid image dimensions. Width and height must be whole numbers between 0 and ${Math.max(maxWidth, maxHeight)}.`, {
+            status: 400,
+            headers: {
+                "Cache-Control": "no-store",
+                "Content-Type": "text/plain",
+            },
+        });
+    }
+    if (!format) {
+        const redirectUrl = new URL(url);
+        redirectUrl.searchParams.set("f", chooseFormat(req.headers.get("Accept")));
+        return Response.redirect(redirectUrl.toString(), 302);
+    }
+    if (!allowedFormats.includes(format)) {
+        return new Response(`Invalid image format. Format must be one of: ${allowedFormats.join(", ")}.`, {
             status: 400,
             headers: {
                 "Cache-Control": "no-store",
@@ -80,6 +96,7 @@ async function resize(url, req, src) {
             width ? `w_${width}` : null,
             height ? `h_${height}` : null,
             `q_${quality}`,
+            `f_${format}`,
         ].filter(Boolean).join(":");
         const imgproxyRequestUrl = `${imgproxyUrl}/${imgproxySignature}/${presets}/plain/${encodeURI(src)}`
         const image = await fetch(imgproxyRequestUrl, {
@@ -119,4 +136,10 @@ function parseDimension(value, max) {
 function snapToPreset(value, presets) {
     if (value === 0) return 0;
     return presets.find(preset => preset >= value) || presets[presets.length - 1];
+}
+
+function chooseFormat(accept) {
+    if (accept?.includes("image/avif")) return "avif";
+    if (accept?.includes("image/webp")) return "webp";
+    return "jpg";
 }

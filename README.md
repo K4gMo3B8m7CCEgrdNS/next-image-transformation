@@ -40,6 +40,14 @@ This also enables shorter Supabase profile image URLs:
 https://<image-optimization-domain>/i/profile/<profile-id>/<image-id>/gallery-720.jpg?w=720
 ```
 
+If `f` is omitted, the API detects the request `Accept` header and redirects to a format-specific URL for CDN-safe caching:
+
+```text
+https://<image-optimization-domain>/i/profile/<profile-id>/<image-id>/gallery-720.jpg?w=720&f=avif
+https://<image-optimization-domain>/i/profile/<profile-id>/<image-id>/gallery-720.jpg?w=720&f=webp
+https://<image-optimization-domain>/i/profile/<profile-id>/<image-id>/gallery-720.jpg?w=720&f=jpg
+```
+
 The API maps that to:
 
 ```text
@@ -58,6 +66,8 @@ Requested dimensions are snapped to preset buckets to improve CDN cache hit rate
 ```text
 320, 480, 640, 720, 960, 1280, 1600, 2048
 ```
+
+Quality is snapped to `50`, `75`, or `85`.
 
 The bundled imgproxy service also includes production-oriented defaults for source allowlisting, source size limits, animated image limits, and network timeouts. Override these in Coolify only if needed:
 
