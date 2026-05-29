@@ -7,13 +7,13 @@ The service has two parts:
 1. A Bun API wrapper that exposes short, application-friendly image URLs.
 2. An imgproxy container that performs resizing, format conversion, and image processing.
 
-The current deployment is designed for Supabase Storage images and Cloudflare CDN caching.
+The current deployment is designed for private Supabase Storage originals, imgproxy resizing, and Cloudflare CDN caching.
 
 ## URL Contract
 
 ### Pretty Supabase routes
 
-Use these routes for images stored in the `images-derived` Supabase bucket:
+Use these routes for high-resolution originals stored in the private `images-originals` Supabase bucket:
 
 ```text
 https://img.cockbro.com/i/profile/<profile-id>/<image-id>/<file>?w=<width>&q=<quality>&f=<format>
@@ -30,8 +30,10 @@ https://img.cockbro.com/i/profile/2b2b8fea-7296-4d79-8525-edde5e6dc3b2/690da1ea-
 This maps internally to:
 
 ```text
-https://<supabase-project>.supabase.co/storage/v1/object/public/images-derived/<route>/<path-to-file>
+images-originals/<route>/<path-to-file>
 ```
+
+The Bun API creates a short-lived Supabase signed URL for that private object and passes it to imgproxy. The browser only sees the stable `/i/...` URL.
 
 ### Generic source route
 
@@ -259,10 +261,15 @@ Set these in Coolify:
 
 ```env
 ALLOWED_REMOTE_DOMAINS=your-project.supabase.co
-SUPABASE_PUBLIC_STORAGE_BASE=https://your-project.supabase.co/storage/v1/object/public
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_SECRET_KEY=your-sb-secret-key
+SUPABASE_ORIGINALS_BUCKET=images-originals
+SUPABASE_SIGNED_URL_EXPIRES_IN=60
 MAX_IMAGE_WIDTH=2048
 MAX_IMAGE_HEIGHT=2048
 ```
+
+Use a modern Supabase secret key, formatted like `sb_secret_...`, for `SUPABASE_SECRET_KEY`.
 
 Useful imgproxy defaults:
 
@@ -295,6 +302,7 @@ The Bun API is responsible for:
 - Pretty `/i/profile/...` routes
 - Pretty `/i/gallery/...` routes
 - Pretty `/i/chat/...` routes
+- Creating short-lived signed URLs for private `images-originals` objects
 - Generic `/image/<absolute-url>` routes
 - Width, height, quality, and format validation
 - Preset bucketing

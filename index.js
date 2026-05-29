@@ -1,3 +1,5 @@
+import { createClient } from "@supabase/supabase-js";
+
 const version = "0.0.3"
 
 let allowedDomains = process?.env?.ALLOWED_REMOTE_DOMAINS?.split(",") || ["*"];
@@ -6,11 +8,26 @@ const imgproxySignature = process?.env?.IMGPROXY_SIGNATURE || "unsafe";
 const imgproxyPreset = process?.env?.IMGPROXY_PRESET;
 const maxWidth = Number(process?.env?.MAX_IMAGE_WIDTH || 2048);
 const maxHeight = Number(process?.env?.MAX_IMAGE_HEIGHT || 2048);
-const supabasePublicStorageBase = process?.env?.SUPABASE_PUBLIC_STORAGE_BASE?.replace(/\/+$/, "");
+const supabaseUrl = process?.env?.SUPABASE_URL?.replace(/\/+$/, "");
+const supabaseSecretKey = process?.env?.SUPABASE_SECRET_KEY;
+const supabaseOriginalsBucket = process?.env?.SUPABASE_ORIGINALS_BUCKET || "images-originals";
+const configuredSignedUrlExpiresIn = Number(process?.env?.SUPABASE_SIGNED_URL_EXPIRES_IN || 60);
+const supabaseSignedUrlExpiresIn = Number.isSafeInteger(configuredSignedUrlExpiresIn) && configuredSignedUrlExpiresIn > 0
+    ? configuredSignedUrlExpiresIn
+    : 60;
 const dimensionPresets = [320, 360, 480, 640, 720, 960, 1280, 1600, 2048];
 const qualityPresets = [50, 75, 85];
 const allowedFormats = ["avif", "webp", "jpg"];
 const allowedPrettyImageRoots = new Set(["profile", "gallery", "chat"]);
+const supabase = supabaseUrl && supabaseSecretKey
+    ? createClient(supabaseUrl, supabaseSecretKey, {
+        auth: {
+            persistSession: false,
+            autoRefreshToken: false,
+            detectSessionInUrl: false,
+        },
+    })
+    : null;
 if (process.env.NODE_ENV === "development") {
     imgproxyUrl = "http://localhost:8888"
 }
@@ -34,8 +51,8 @@ Bun.serve({
         };
         if (url.pathname.startsWith("/image/")) return await resize(url, req, url.pathname.split("/").slice(2).join("/"));
         if (url.pathname.startsWith("/i/")) {
-            if (!supabasePublicStorageBase) {
-                return new Response("SUPABASE_PUBLIC_STORAGE_BASE is not configured", {
+            if (!supabase) {
+                return new Response("SUPABASE_URL and SUPABASE_SECRET_KEY must be configured for private image routes", {
                     status: 500,
                     headers: {
                         "Cache-Control": "no-store",
@@ -54,11 +71,70 @@ Bun.serve({
                     },
                 });
             }
-            return await resize(url, req, `${supabasePublicStorageBase}/images-derived/${imagePath}`);
+            const signedUrl = await createOriginalImageSignedUrl(imagePath);
+            if (!signedUrl.ok) return signedUrl.response;
+            return await resize(url, req, signedUrl.url);
         }
         return Response.redirect("https://github.com/coollabsio/next-image-transformation", 302);
     }
 });
+
+async function createOriginalImageSignedUrl(imagePath) {
+    let objectPath;
+    try {
+        objectPath = decodeURIComponent(imagePath);
+    } catch {
+        return {
+            ok: false,
+            response: new Response("Invalid image path", {
+                status: 400,
+                headers: {
+                    "Cache-Control": "no-store",
+                    "Content-Type": "text/plain",
+                },
+            }),
+        };
+    }
+
+    let data;
+    let error;
+    try {
+        ({ data, error } = await supabase.storage
+            .from(supabaseOriginalsBucket)
+            .createSignedUrl(objectPath, supabaseSignedUrlExpiresIn));
+    } catch (e) {
+        console.log(e);
+        return {
+            ok: false,
+            response: new Response("Error signing source image", {
+                status: 500,
+                headers: {
+                    "Cache-Control": "no-store",
+                    "Content-Type": "text/plain",
+                },
+            }),
+        };
+    }
+
+    if (error || !data?.signedUrl) {
+        console.log(error);
+        return {
+            ok: false,
+            response: new Response("Source image not found or not accessible", {
+                status: 404,
+                headers: {
+                    "Cache-Control": "no-store",
+                    "Content-Type": "text/plain",
+                },
+            }),
+        };
+    }
+
+    return {
+        ok: true,
+        url: data.signedUrl,
+    };
+}
 
 async function resize(url, req, src) {
     const origin = new URL(src).hostname;
@@ -110,7 +186,7 @@ async function resize(url, req, src) {
             `q_${quality}`,
             `f_${format}`,
         ].filter(Boolean).join(":");
-        const imgproxyRequestUrl = `${imgproxyUrl}/${imgproxySignature}/${presets}/plain/${encodeURI(src)}`
+        const imgproxyRequestUrl = `${imgproxyUrl}/${imgproxySignature}/${presets}/plain/${encodeURIComponent(src)}`
         const image = await fetch(imgproxyRequestUrl, {
             headers: {
                 "Accept": req.headers.get("Accept") || "*/*",
