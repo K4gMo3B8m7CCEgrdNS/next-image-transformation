@@ -7,9 +7,10 @@ const imgproxyPreset = process?.env?.IMGPROXY_PRESET;
 const maxWidth = Number(process?.env?.MAX_IMAGE_WIDTH || 2048);
 const maxHeight = Number(process?.env?.MAX_IMAGE_HEIGHT || 2048);
 const supabasePublicStorageBase = process?.env?.SUPABASE_PUBLIC_STORAGE_BASE?.replace(/\/+$/, "");
-const dimensionPresets = [320, 480, 640, 720, 960, 1280, 1600, 2048];
+const dimensionPresets = [320, 360, 480, 640, 720, 960, 1280, 1600, 2048];
 const qualityPresets = [50, 75, 85];
 const allowedFormats = ["avif", "webp", "jpg"];
+const allowedPrettyImageRoots = new Set(["profile", "gallery", "chat"]);
 if (process.env.NODE_ENV === "development") {
     imgproxyUrl = "http://localhost:8888"
 }
@@ -32,7 +33,7 @@ Bun.serve({
             return new Response("OK");
         };
         if (url.pathname.startsWith("/image/")) return await resize(url, req, url.pathname.split("/").slice(2).join("/"));
-        if (url.pathname.startsWith("/i/profile/")) {
+        if (url.pathname.startsWith("/i/")) {
             if (!supabasePublicStorageBase) {
                 return new Response("SUPABASE_PUBLIC_STORAGE_BASE is not configured", {
                     status: 500,
@@ -42,8 +43,18 @@ Bun.serve({
                     },
                 });
             }
-            const profilePath = url.pathname.slice("/i/profile/".length);
-            return await resize(url, req, `${supabasePublicStorageBase}/images-derived/profile/${profilePath}`);
+            const imagePath = url.pathname.slice("/i/".length);
+            const [root] = imagePath.split("/");
+            if (!allowedPrettyImageRoots.has(root)) {
+                return new Response(`Unsupported image route. Supported routes: ${[...allowedPrettyImageRoots].map(route => `/i/${route}/...`).join(", ")}.`, {
+                    status: 404,
+                    headers: {
+                        "Cache-Control": "no-store",
+                        "Content-Type": "text/plain",
+                    },
+                });
+            }
+            return await resize(url, req, `${supabasePublicStorageBase}/images-derived/${imagePath}`);
         }
         return Response.redirect("https://github.com/coollabsio/next-image-transformation", 302);
     }

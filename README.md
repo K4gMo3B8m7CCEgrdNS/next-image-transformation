@@ -11,12 +11,14 @@ The current deployment is designed for Supabase Storage images and Cloudflare CD
 
 ## URL Contract
 
-### Pretty Supabase profile route
+### Pretty Supabase routes
 
-Use this route for profile gallery images stored in the `images-derived` Supabase bucket:
+Use these routes for images stored in the `images-derived` Supabase bucket:
 
 ```text
 https://img.cockbro.com/i/profile/<profile-id>/<image-id>/<file>?w=<width>&q=<quality>&f=<format>
+https://img.cockbro.com/i/gallery/<path-to-file>?w=<width>&q=<quality>&f=<format>
+https://img.cockbro.com/i/chat/<path-to-file>?w=<width>&q=<quality>&f=<format>
 ```
 
 Example:
@@ -28,7 +30,7 @@ https://img.cockbro.com/i/profile/2b2b8fea-7296-4d79-8525-edde5e6dc3b2/690da1ea-
 This maps internally to:
 
 ```text
-https://<supabase-project>.supabase.co/storage/v1/object/public/images-derived/profile/<profile-id>/<image-id>/<file>
+https://<supabase-project>.supabase.co/storage/v1/object/public/images-derived/<route>/<path-to-file>
 ```
 
 ### Generic source route
@@ -185,7 +187,7 @@ For high-traffic or above-the-fold images, prefer a custom `<picture>` wrapper w
 The wrapper snaps requested widths and heights to preset buckets before calling imgproxy:
 
 ```text
-320, 480, 640, 720, 960, 1280, 1600, 2048
+320, 360, 480, 640, 720, 960, 1280, 1600, 2048
 ```
 
 Examples:
@@ -291,6 +293,8 @@ Browser
 The Bun API is responsible for:
 
 - Pretty `/i/profile/...` routes
+- Pretty `/i/gallery/...` routes
+- Pretty `/i/chat/...` routes
 - Generic `/image/<absolute-url>` routes
 - Width, height, quality, and format validation
 - Preset bucketing
