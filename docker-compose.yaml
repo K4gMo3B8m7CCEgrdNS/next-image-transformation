@@ -34,7 +34,7 @@ services:
       - IMGPROXY_PREFERRED_FORMATS=jxl,avif,webp,png
       - IMGPROXY_WORKERS=${IMGPROXY_WORKERS:-2}
       - IMGPROXY_ONLY_PRESETS=true
-      - IMGPROXY_PRESETS=default=resizing_type:fit,w_320=w:320,w_360=w:360,w_480=w:480,w_640=w:640,w_720=w:720,w_960=w:960,w_1280=w:1280,w_1600=w:1600,w_2048=w:2048,h_320=h:320,h_360=h:360,h_480=h:480,h_640=h:640,h_720=h:720,h_960=h:960,h_1280=h:1280,h_1600=h:1600,h_2048=h:2048,q_50=q:50,q_75=q:75,q_85=q:85,square_sm=resizing_type:fill,gravity:sm,f_jxl=format:jxl,f_avif=format:avif,f_webp=format:webp,f_png=format:png,f_jpg=format:jpg
+      - IMGPROXY_PRESETS=default=resizing_type:fit,w_320=w:320,w_360=w:360,w_480=w:480,w_640=w:640,w_720=w:720,w_960=w:960,w_1280=w:1280,w_1600=w:1600,w_2048=w:2048,h_320=h:320,h_360=h:360,h_480=h:480,h_640=h:640,h_720=h:720,h_960=h:960,h_1280=h:1280,h_1600=h:1600,h_2048=h:2048,q_50=q:50,q_75=q:75,q_85=q:85,square_sm=resizing_type:fill/gravity:sm,f_jxl=format:jxl,f_avif=format:avif,f_webp=format:webp,f_png=format:png,f_jpg=format:jpg
       - IMGPROXY_MAX_RESULT_DIMENSION=${IMGPROXY_MAX_RESULT_DIMENSION:-2048}
       - IMGPROXY_ALLOWED_SOURCES=${IMGPROXY_ALLOWED_SOURCES:-https://${ALLOWED_REMOTE_DOMAINS}/}
       - IMGPROXY_MAX_SRC_RESOLUTION=${IMGPROXY_MAX_SRC_RESOLUTION:-50}

@@ -2,7 +2,11 @@ import { createClient } from "@supabase/supabase-js";
 
 const version = "0.0.3"
 
-let allowedDomains = process?.env?.ALLOWED_REMOTE_DOMAINS?.split(",") || ["*"];
+const configuredAllowedDomains = process?.env?.ALLOWED_REMOTE_DOMAINS?.split(",").map(domain => domain.trim()).filter(Boolean);
+if (!configuredAllowedDomains?.length) {
+    throw new Error("ALLOWED_REMOTE_DOMAINS must be configured with at least one allowed source domain");
+}
+const allowedDomains = configuredAllowedDomains;
 let imgproxyUrl = process?.env?.IMGPROXY_URL || "http://imgproxy:8080";
 const imgproxySignature = process?.env?.IMGPROXY_SIGNATURE || "unsafe";
 const imgproxyPreset = process?.env?.IMGPROXY_PRESET;
@@ -31,7 +35,6 @@ const supabase = supabaseUrl && supabaseSecretKey
 if (process.env.NODE_ENV === "development") {
     imgproxyUrl = "http://localhost:8888"
 }
-allowedDomains = allowedDomains.map(d => d.trim());
 imgproxyUrl = imgproxyUrl.replace(/\/+$/, "");
 
 Bun.serve({
