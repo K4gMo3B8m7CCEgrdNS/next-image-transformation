@@ -17,7 +17,7 @@ const supabaseSignedUrlExpiresIn = Number.isSafeInteger(configuredSignedUrlExpir
     : 60;
 const dimensionPresets = [320, 360, 480, 640, 720, 960, 1280, 1600, 2048];
 const qualityPresets = [50, 75, 85];
-const allowedFormats = ["avif", "webp", "jpg"];
+const allowedFormats = ["jxl", "avif", "webp", "png", "jpg"];
 const allowedPrettyImageRoots = new Set(["profile", "gallery", "chat"]);
 const supabase = supabaseUrl && supabaseSecretKey
     ? createClient(supabaseUrl, supabaseSecretKey, {
@@ -39,7 +39,7 @@ Bun.serve({
     async fetch(req) {
         const url = new URL(req.url);
         if (url.pathname === "/") {
-            return new Response(`<h3>Next Image Transformation v${version}</h3>More info <a href="https://github.com/coollabsio/next-image-transformation">https://github.com/coollabsio/next-image-transformation</a>.`, {
+            return new Response(`<h3>Next Image Transformation v${version}</h3>More info <a href="https://cockbro.com">https://cockbro.com</a>.`, {
                 headers: {
                     "Content-Type": "text/html",
                 },
@@ -75,7 +75,7 @@ Bun.serve({
             if (!signedUrl.ok) return signedUrl.response;
             return await resize(url, req, signedUrl.url);
         }
-        return Response.redirect("https://github.com/coollabsio/next-image-transformation", 302);
+        return Response.redirect("https://cockbro.com", 302);
     }
 });
 
@@ -145,14 +145,30 @@ async function resize(url, req, src) {
         return false;
     })
     if (allowed.length === 0) {
-        return new Response(`Domain (${origin}) not allowed. More details here: https://github.com/coollabsio/next-image-transformation`, { status: 403 });
+        return new Response(`Domain (${origin}) not allowed. More details here: https://cockbro.com`, { status: 403 });
     }
     const requestedWidth = parseDimension(url.searchParams.get("width") || url.searchParams.get("w"), maxWidth);
     const requestedHeight = parseDimension(url.searchParams.get("height") || url.searchParams.get("h"), maxHeight);
     const requestedQuality = parseDimension(url.searchParams.get("quality") || url.searchParams.get("q") || 75, 100);
+    const requestedCrop = url.searchParams.get("crop") || url.searchParams.get("g");
     const format = url.searchParams.get("f");
-    if (requestedWidth === null || requestedHeight === null || requestedQuality === null) {
-        return new Response(`Invalid image dimensions. Width and height must be whole numbers between 0 and ${Math.max(maxWidth, maxHeight)}.`, {
+    if (requestedWidth === null) {
+        return invalidDimensionResponse("Width", maxWidth);
+    }
+    if (requestedHeight === null) {
+        return invalidDimensionResponse("Height", maxHeight);
+    }
+    if (requestedQuality === null) {
+        return new Response(`Invalid image quality. Quality must be a whole number between 0 and 100.`, {
+            status: 400,
+            headers: {
+                "Cache-Control": "no-store",
+                "Content-Type": "text/plain",
+            },
+        });
+    }
+    if (requestedCrop !== null && requestedCrop !== "sm") {
+        return new Response(`Invalid crop mode. Crop must be one of: sm.`, {
             status: 400,
             headers: {
                 "Cache-Control": "no-store",
@@ -181,6 +197,7 @@ async function resize(url, req, src) {
     try {
         const presets = [
             imgproxyPreset || null,
+            requestedCrop === "sm" ? "square_sm" : null,
             width ? `w_${width}` : null,
             height ? `h_${height}` : null,
             `q_${quality}`,
@@ -221,13 +238,24 @@ function parseDimension(value, max) {
     return dimension;
 }
 
+function invalidDimensionResponse(label, max) {
+    return new Response(`Invalid image dimensions. ${label} must be a whole number between 0 and ${max}.`, {
+        status: 400,
+        headers: {
+            "Cache-Control": "no-store",
+            "Content-Type": "text/plain",
+        },
+    });
+}
+
 function snapToPreset(value, presets) {
     if (value === 0) return 0;
     return presets.find(preset => preset >= value) || presets[presets.length - 1];
 }
 
 function chooseFormat(accept) {
+    if (accept?.includes("image/jxl")) return "jxl";
     if (accept?.includes("image/avif")) return "avif";
     if (accept?.includes("image/webp")) return "webp";
-    return "jpg";
+    return "png";
 }

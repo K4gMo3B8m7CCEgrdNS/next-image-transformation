@@ -4,8 +4,10 @@ services:
     ports:
       - "8888:8080"
     environment:
+      - IMGPROXY_AUTO_JXL=true
       - IMGPROXY_ENABLE_WEBP_DETECTION=true
       - IMGPROXY_ENABLE_AVIF_DETECTION=true
-      - IMGPROXY_PREFERRED_FORMATS=webp,avif,jpeg,png,gif
+      - IMGPROXY_PREFERRED_FORMATS=jxl,avif,webp,png
+      - IMGPROXY_PRESETS=square_sm=resizing_type:fill,gravity:sm
       - IMGPROXY_JPEG_PROGRESSIVE=true
       - IMGPROXY_USE_ETAG=true

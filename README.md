@@ -66,14 +66,17 @@ The generic route supports both short and long names:
 width or w
 height or h
 quality or q
+crop or g
 f
 ```
 
 Supported formats:
 
 ```text
+jxl
 avif
 webp
+png
 jpg
 ```
 
@@ -81,7 +84,7 @@ Invalid formats return `400` and are not cached.
 
 ## Format Selection
 
-For Cloudflare Free, do not rely on `Vary: Accept` to cache AVIF/WebP/JPG variants correctly under the same URL. This service makes the format part of the URL with `f=`.
+For Cloudflare Free, do not rely on `Vary: Accept` to cache JXL/AVIF/WebP/PNG/JPG variants correctly under the same URL. This service makes the format part of the URL with `f=`.
 
 If `f` is omitted, the Bun API chooses the best format from the request `Accept` header and redirects to a format-specific URL:
 
@@ -92,20 +95,30 @@ If `f` is omitted, the Bun API chooses the best format from the request `Accept`
 Redirects to one of:
 
 ```text
+/i/profile/.../gallery-720.jpg?w=720&f=jxl
 /i/profile/.../gallery-720.jpg?w=720&f=avif
 /i/profile/.../gallery-720.jpg?w=720&f=webp
-/i/profile/.../gallery-720.jpg?w=720&f=jpg
+/i/profile/.../gallery-720.jpg?w=720&f=png
 ```
 
 Selection order:
 
 ```text
+image/jxl  -> jxl
 image/avif -> avif
 image/webp -> webp
-otherwise  -> jpg
+otherwise  -> png
 ```
 
 Use explicit `f=` URLs in your frontend where possible to avoid the redirect.
+
+For square user grids, opt into smart crop with `crop=sm`:
+
+```text
+/i/profile/.../avatar.jpg?w=320&h=320&crop=sm&f=webp
+```
+
+That maps to imgproxy `resizing_type:fill` plus `gravity:sm`, so the crop keeps the most interesting part of the image centered in the square.
 
 ## Responsive Images
 
@@ -113,6 +126,15 @@ For the best frontend behavior, use format-specific URLs in a `<picture>` elemen
 
 ```html
 <picture>
+  <source
+    type="image/jxl"
+    srcset="
+      https://img.cockbro.com/i/profile/<profile-id>/<image-id>/gallery-720.jpg?w=320&f=jxl 320w,
+      https://img.cockbro.com/i/profile/<profile-id>/<image-id>/gallery-720.jpg?w=640&f=jxl 640w,
+      https://img.cockbro.com/i/profile/<profile-id>/<image-id>/gallery-720.jpg?w=960&f=jxl 960w
+    "
+    sizes="(max-width: 768px) 100vw, 720px"
+  />
   <source
     type="image/avif"
     srcset="
@@ -132,11 +154,11 @@ For the best frontend behavior, use format-specific URLs in a `<picture>` elemen
     sizes="(max-width: 768px) 100vw, 720px"
   />
   <img
-    src="https://img.cockbro.com/i/profile/<profile-id>/<image-id>/gallery-720.jpg?w=720&f=jpg"
+    src="https://img.cockbro.com/i/profile/<profile-id>/<image-id>/gallery-720.jpg?w=720&f=png"
     srcset="
-      https://img.cockbro.com/i/profile/<profile-id>/<image-id>/gallery-720.jpg?w=320&f=jpg 320w,
-      https://img.cockbro.com/i/profile/<profile-id>/<image-id>/gallery-720.jpg?w=640&f=jpg 640w,
-      https://img.cockbro.com/i/profile/<profile-id>/<image-id>/gallery-720.jpg?w=960&f=jpg 960w
+      https://img.cockbro.com/i/profile/<profile-id>/<image-id>/gallery-720.jpg?w=320&f=png 320w,
+      https://img.cockbro.com/i/profile/<profile-id>/<image-id>/gallery-720.jpg?w=640&f=png 640w,
+      https://img.cockbro.com/i/profile/<profile-id>/<image-id>/gallery-720.jpg?w=960&f=png 960w
     "
     sizes="(max-width: 768px) 100vw, 720px"
     width="720"
@@ -182,7 +204,7 @@ import Image from 'next/image';
 />
 ```
 
-For high-traffic or above-the-fold images, prefer a custom `<picture>` wrapper with explicit `f=avif`, `f=webp`, and `f=jpg` URLs. That avoids redirects and is safest with Cloudflare Free.
+For high-traffic or above-the-fold images, prefer a custom `<picture>` wrapper with explicit `f=jxl`, `f=avif`, `f=webp`, and `f=png` URLs. That avoids redirects and is safest with Cloudflare Free.
 
 ## Preset Bucketing
 
@@ -240,16 +262,20 @@ vary: Accept
 Because Cloudflare Free does not safely vary cached images by `Accept`, use format-specific URLs:
 
 ```text
+?f=jxl
 ?f=avif
 ?f=webp
+?f=png
 ?f=jpg
 ```
 
 Verified behavior:
 
 ```text
+?f=jxl  -> image/jxl  -> second request cf-cache-status: HIT
 ?f=avif -> image/avif -> second request cf-cache-status: HIT
 ?f=webp -> image/webp -> second request cf-cache-status: HIT
+?f=png  -> image/png  -> second request cf-cache-status: HIT
 ?f=jpg  -> image/jpeg -> second request cf-cache-status: HIT
 ```
 
